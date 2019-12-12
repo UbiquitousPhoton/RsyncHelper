@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 #   MIT License
 #
 #   Copyright (c) 2019 Paul Elliott
@@ -214,9 +216,9 @@ def Setup_Mount(sync_logger, sync_section, sync_section_name):
     # TODO - attempt mount if not mounted.
     if "try_mount" in sync_section:
         mount_point = sync_section.get("try_mount")
+        try_mount = True
 
     elif "check_mount" in sync_section:
-        print("check mount")
         mount_point = sync_section.get("check_mount")
         check_mount = True
 
@@ -255,7 +257,7 @@ def Do_Sync(sync_logger, sync_section, sync_section_name):
 
     essential_local_elements = ["target_dir", "source_dir"]
     essential_remote_elements = essential_local_elements.copy()
-    essential_remote_elements.extend(["ssh_user", "ssh_addr"])
+    essential_remote_elements.extend(["remote_user", "remote_host"])
 
     should_delete = sync_section.getboolean('delete', False)
 
@@ -287,9 +289,9 @@ def Do_Sync(sync_logger, sync_section, sync_section_name):
             return False
 
         if not Do_Shell_Exec(sync_logger,
-                             "rsync -avc {} - -rsh = ssh {}@{}::{} {}".format(delete_string,
+                             "rsync -avc {} --rsh=ssh {}@{}::{} {}".format(delete_string,
                                                                               sync_section.get('remote_user'),
-                                                                              sync_section.get('remote_server'),
+                                                                              sync_section.get('remote_host'),
                                                                               sync_section.get('source_dir'),
                                                                               sync_section.get('target_dir'))):
             return False
