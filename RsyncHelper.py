@@ -224,7 +224,7 @@ class SyncMounter:
                                 "Failed to unmount {} for setion {}".format(self.mount_point,
                                                                             sync_section_name))
 
-        self.mount_type = SyncMounter.MountType.mount_none:
+        self.mount_type = SyncMounter.MountType.mount_none
 
 
 def Check_Elements(element_list, required_element_list, sync_logger, section_name):
