@@ -38,6 +38,7 @@ import subprocess
 from subprocess import Popen, PIPE
 from datetime import datetime
 import shlex
+from enum import Enum
 
 class FileLogger:
 
@@ -149,6 +150,83 @@ class SyncLogger:
         self.mail_logger.Send()
 
 
+class SyncMounter:
+
+    class MountType(Enum):
+        mount_none = 0
+        mount_check = 1
+        mount_try = 2
+
+
+    def __init__(self):
+        self.mount_type = SyncMounter.MountType.mount_none
+
+    def Setup(self, sync_logger, sync_section, sync_section_name):
+
+        if self.mount_type != SyncMounter.MountType.mount_none:
+            Shutdown(self)
+
+        self.mount_type = SyncMounter.MountType.mount_none
+
+        if "try_mount" in sync_section:
+            self.mount_point = sync_section.get("try_mount")
+            self.mount_type = SyncMounter.MountType.mount_try
+
+        elif "check_mount" in sync_section:
+            self.mount_point = sync_section.get("check_mount")
+            self.mount_type = SyncMounter.MountType.mount_check
+
+        if self.mount_type != SyncMounter.MountType.mount_none:
+
+            if not os.path.ismount(self.mount_point):
+
+                if self.mount_type == SyncMounter.MountType.mount_check:
+                    sync_logger.Log(logging.ERROR,
+                                    "Checked mount {} not mounted, abandoning section {}".format(self.mount_point,
+                                                                                                 sync_section_name))
+                    return False
+
+                else:
+                    if not os.path.isdir(self.mount_point):
+                        Do_Shell_Exec(sync_logger, "mkdir -p {}".format(self.mount_point))
+
+                    Do_Shell_Exec(sync_logger, "mount {}".format(self.mount_point))
+
+                    if not os.path.ismount(self.mount_point):
+
+                        sync_logger.Log(logging.ERROR,
+                                        "Attempt to mount {} failed, abandoning section {}".format(self.mount_point,
+                                                                                                   sync_section_name))
+                        self.mount_type = SyncMounter.MountType.mount_none
+                        return False
+                    else:
+                        sync_logger.Log(logging.INFO,
+                                        "Successfully mounted {}".format(self.mount_point))
+            else:
+                sync_logger.Log(logging.INFO,
+                                "Checked mount {} is mounted".format(self.mount_point))
+
+        return True
+
+    def Shutdown(self, sync_logger, sync_section, sync_section_name):
+
+        if self.mount_type == SyncMounter.MountType.mount_try:
+            Do_Shell_Exec(sync_logger, "umount {}".format(self.mount_point))
+
+            if not os.path.ismount(self.mount_point):
+
+                sync_logger.Log(logging.INFO,
+                                "Successfully unmounted {} for section {}".format(self.mount_point,
+                                                                                  sync_section_name))
+                return False
+            else:
+                sync_logger.Log(logging.ERROR,
+                                "Failed to unmount {} for setion {}".format(self.mount_point,
+                                                                            sync_section_name))
+
+        self.mount_type = SyncMounter.MountType.mount_none:
+
+
 def Check_Elements(element_list, required_element_list, sync_logger, section_name):
 
     for element in required_element_list:
@@ -208,51 +286,6 @@ def Setup_Logging_And_Mail(sync_logger, sync_section, sync_section_name):
     else:
         return True
 
-def Setup_Mount(sync_logger, sync_section, sync_section_name):
-
-    check_mount = False
-    try_mount = False
-
-    # TODO - attempt mount if not mounted.
-    if "try_mount" in sync_section:
-        mount_point = sync_section.get("try_mount")
-        try_mount = True
-
-    elif "check_mount" in sync_section:
-        mount_point = sync_section.get("check_mount")
-        check_mount = True
-
-    if check_mount or try_mount:
-
-        if not os.path.ismount(mount_point):
-
-            if not try_mount:
-                sync_logger.Log(logging.ERROR,
-                                "Checked mount {} not mounted, abandoning section {}".format(mount_point,
-                                                                                             sync_section_name))
-                return False
-
-            else:
-                if not os.path.isdir(mount_point):
-                    Do_Shell_Exec(sync_logger, "mkdir -p {}".format(mount_point))
-
-                Do_Shell_Exec(sync_logger, "mount {}".format(mount_point))
-
-                if not os.path.ismount(mount_point):
-
-                    sync_logger.Log(logging.ERROR,
-                                    "Attempt to mount {} failed, abandoning section {}".format(mount_point,
-                                                                                               sync_section_name))
-                    return False
-                else:
-                    # TODO - mybe unmount at end?
-                    sync_logger.Log(logging.INFO,
-                                    "Successfully mounted {}".format(mount_point))
-        else:
-            sync_logger.Log(logging.INFO, "Checked mount {} is mounted".format(mount_point))
-
-    return True
-
 def Do_Sync(sync_logger, sync_section, sync_section_name):
 
     essential_local_elements = ["target_dir", "source_dir"]
@@ -290,10 +323,10 @@ def Do_Sync(sync_logger, sync_section, sync_section_name):
 
         if not Do_Shell_Exec(sync_logger,
                              "rsync -avc {} --rsh=ssh {}@{}::{} {}".format(delete_string,
-                                                                              sync_section.get('remote_user'),
-                                                                              sync_section.get('remote_host'),
-                                                                              sync_section.get('source_dir'),
-                                                                              sync_section.get('target_dir'))):
+                                                                           sync_section.get('remote_user'),
+                                                                           sync_section.get('remote_host'),
+                                                                           sync_section.get('source_dir'),
+                                                                           sync_section.get('target_dir'))):
             return False
 
     else:
@@ -318,6 +351,7 @@ if __name__ == "__main__":
     config.read(args.config_file)
 
     sync_logger = SyncLogger()
+    sync_mounter = SyncMounter()
 
     for sync_section_name in config.sections():
 
@@ -332,7 +366,7 @@ if __name__ == "__main__":
                         "Sync section {} begins {}".format(sync_section_name,
                                                            start_time.strftime("%d/%m/%Y %H:%M")))
 
-        if not Setup_Mount(sync_logger, sync_section, sync_section_name):
+        if not sync_mounter.Setup(sync_logger, sync_section, sync_section_name):
             continue
 
         if not Do_Sync(sync_logger, sync_section, sync_section_name):
@@ -358,5 +392,6 @@ if __name__ == "__main__":
                             "Executing post sync action for {}".format(sync_section_name))
             Do_Shell_Exec(sync_logger, sync_section.get('post_sync'))
 
+    sync_mounter.Shutdown(sync_logger, sync_section, sync_section_name)
     sync_logger.SendMail()
 
