@@ -275,7 +275,7 @@ def Setup_Logging_And_Mail(sync_logger, sync_section, sync_section_name):
         if Check_Elements(sync_section, essential_mail_elements, sync_logger, sync_section_name):
             server = sync_section.get("mail_server", "127.0.0.1")
             subject = sync_section.get("mail_subject",
-                                       "Rsync Helper on {}".format(socket.getfqdn()))
+                                       "Rsync Helper on {}".format(socket.gethostname()))
 
             sync_logger.SetupMail(server, sync_section.get("mail_from"),
                                   sync_section.get("mail_to"), subject)
@@ -341,14 +341,11 @@ def Do_Sync(sync_logger, sync_section, sync_section_name):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description='Rsync wrapper for scheduled jobs')
-    parser.add_argument("config_file", help="Sync Config File")
+    parser.add_argument("config_file", help="Sync Config File", type = argparse.FileType('r'))
     args = parser.parse_args()
 
-    if not os.path.isfile(args.config_file):
-        sys.exit("Error: Config file {} does not exist.".format(args.config_file))
-
     config = configparser.ConfigParser()
-    config.read(args.config_file)
+    config.read_file(args.config_file)
 
     sync_logger = SyncLogger()
     sync_mounter = SyncMounter()
