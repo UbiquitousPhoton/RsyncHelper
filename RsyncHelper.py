@@ -176,6 +176,8 @@ class SyncMounter:
             self.mount_point = sync_section.get("check_mount")
             self.mount_type = SyncMounter.MountType.mount_check
 
+        self.should_unmount = sync_section.getboolean("should_unmount", False)
+
         if self.mount_type != SyncMounter.MountType.mount_none:
 
             if not os.path.ismount(self.mount_point):
@@ -210,7 +212,7 @@ class SyncMounter:
 
     def Shutdown(self, sync_logger, sync_section, sync_section_name):
 
-        if self.mount_type == SyncMounter.MountType.mount_try:
+        if self.mount_type == SyncMounter.MountType.mount_try and self.should_unmount:
             Do_Shell_Exec(sync_logger, "umount {}".format(self.mount_point))
 
             if not os.path.ismount(self.mount_point):
