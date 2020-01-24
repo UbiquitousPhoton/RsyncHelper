@@ -311,7 +311,7 @@ def Do_Sync(sync_logger, sync_section, sync_section_name):
             return False
 
         if not Do_Shell_Exec(sync_logger,
-                             "rsync -avc {} {} {}".format(delete_string,
+                             "rsync -av {} {} {}".format(delete_string,
                                                           sync_section.get('source_dir'),
                                                           sync_section.get('target_dir'))):
             return False
@@ -324,7 +324,7 @@ def Do_Sync(sync_logger, sync_section, sync_section_name):
             return False
 
         if not Do_Shell_Exec(sync_logger,
-                             "rsync -avc {} --rsh=ssh {}@{}::{} {}".format(delete_string,
+                             "rsync -av {} --rsh=ssh {}@{}::{} {}".format(delete_string,
                                                                            sync_section.get('remote_user'),
                                                                            sync_section.get('remote_host'),
                                                                            sync_section.get('source_dir'),
